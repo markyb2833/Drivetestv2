@@ -228,7 +228,7 @@ for tool in "${OPTIONAL_TOOLS[@]}"; do
         if command_exists "$tool"; then
             HDSENTINEL_PATH=$(which "$tool")
             HDSENTINEL_FOUND=true
-        # Check project directory locations
+        # Check project directory locations (files)
         elif [ -f "./hdsentinel" ] && [ -x "./hdsentinel" ]; then
             HDSENTINEL_PATH="./hdsentinel"
             HDSENTINEL_FOUND=true
@@ -238,6 +238,32 @@ for tool in "${OPTIONAL_TOOLS[@]}"; do
         elif [ -f "hdsentinel" ] && [ -x "hdsentinel" ]; then
             HDSENTINEL_PATH="hdsentinel"
             HDSENTINEL_FOUND=true
+        # Check inside folders named "hdsentinel"
+        elif [ -d "./hdsentinel" ]; then
+            # Check for binary inside folder
+            for bin_name in "./hdsentinel/hdsentinel" "./hdsentinel/HDSentinel" "./hdsentinel/HDSENTINEL" "./hdsentinel/hdsentinel-linux" "./hdsentinel/HDSentinel-linux"; do
+                if [ -f "$bin_name" ] && [ -x "$bin_name" ]; then
+                    HDSENTINEL_PATH="$bin_name"
+                    HDSENTINEL_FOUND=true
+                    break
+                fi
+            done
+        elif [ -d "./HDSentinel" ]; then
+            for bin_name in "./HDSentinel/hdsentinel" "./HDSentinel/HDSentinel" "./HDSentinel/HDSENTINEL" "./HDSentinel/hdsentinel-linux"; do
+                if [ -f "$bin_name" ] && [ -x "$bin_name" ]; then
+                    HDSENTINEL_PATH="$bin_name"
+                    HDSENTINEL_FOUND=true
+                    break
+                fi
+            done
+        elif [ -d "./tools/hdsentinel" ]; then
+            for bin_name in "./tools/hdsentinel/hdsentinel" "./tools/hdsentinel/HDSentinel"; do
+                if [ -f "$bin_name" ] && [ -x "$bin_name" ]; then
+                    HDSENTINEL_PATH="$bin_name"
+                    HDSENTINEL_FOUND=true
+                    break
+                fi
+            done
         fi
         
         if [ "$HDSENTINEL_FOUND" = true ]; then
@@ -245,7 +271,11 @@ for tool in "${OPTIONAL_TOOLS[@]}"; do
             echo -e "${GREEN}✓${NC} $tool: Found at $HDSENTINEL_PATH ($VERSION)"
         else
             echo -e "${YELLOW}⚠${NC} $tool: NOT FOUND (optional, but recommended)"
-            echo "   Place HDSentinel binary in: ./hdsentinel or ./tools/hdsentinel"
+            echo "   Place HDSentinel binary in:"
+            echo "     - ./hdsentinel (file)"
+            echo "     - ./hdsentinel/hdsentinel (file inside folder)"
+            echo "     - ./tools/hdsentinel (file)"
+            echo "     - /usr/local/bin/hdsentinel (system-wide)"
         fi
     else
         if command_exists "$tool"; then

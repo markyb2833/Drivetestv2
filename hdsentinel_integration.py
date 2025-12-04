@@ -43,16 +43,35 @@ class HDSentinelIntegration:
         if custom_path and os.path.exists(custom_path):
             return custom_path
         
-        # Common locations
+        base_dir = os.path.dirname(__file__)
+        
+        # Common locations - check files first
         search_paths = [
             '/usr/local/bin/hdsentinel',
             '/usr/bin/hdsentinel',
             '/opt/hdsentinel/hdsentinel',
-            os.path.join(os.path.dirname(__file__), 'tools', 'hdsentinel'),
-            os.path.join(os.path.dirname(__file__), 'hdsentinel'),
+            os.path.join(base_dir, 'tools', 'hdsentinel'),
+            os.path.join(base_dir, 'hdsentinel'),
             './hdsentinel',
             './tools/hdsentinel',
         ]
+        
+        # Also check inside folders named "hdsentinel"
+        folder_paths = [
+            os.path.join(base_dir, 'hdsentinel'),
+            './hdsentinel',
+            './HDSentinel',
+            './HDSENTINEL',
+        ]
+        
+        # Check for binary files inside folders
+        for folder_path in folder_paths:
+            if os.path.isdir(folder_path):
+                # Check common binary names inside folder
+                for bin_name in ['hdsentinel', 'HDSentinel', 'HDSENTINEL', 'hdsentinel-linux', 'HDSentinel-linux']:
+                    bin_path = os.path.join(folder_path, bin_name)
+                    if os.path.exists(bin_path) and os.access(bin_path, os.X_OK):
+                        search_paths.append(bin_path)
         
         for path in search_paths:
             if os.path.exists(path) and os.access(path, os.X_OK):

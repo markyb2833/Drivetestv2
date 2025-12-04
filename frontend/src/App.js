@@ -14,48 +14,6 @@ function App() {
   
   const { connected, socket } = useWebSocket();
 
-  // Load initial data
-  useEffect(() => {
-    loadInitialData();
-  }, [loadInitialData]);
-
-  // WebSocket event handlers
-  useEffect(() => {
-    if (!socket) return;
-
-    socket.on('drives_updated', () => {
-      loadDrives();
-      loadBayMap();
-    });
-
-    socket.on('test_progress', (data) => {
-      // Update test progress in bay map
-      setBayMap(prev => prev.map(bay => {
-        if (bay.bay_number === data.bay_number) {
-          return { ...bay, test_progress: data };
-        }
-        return bay;
-      }));
-    });
-
-    socket.on('session_updated', (data) => {
-      if (data.po_number) {
-        setSession(prev => ({ ...prev, po_number: data.po_number }));
-      }
-    });
-
-    socket.on('settings_updated', () => {
-      loadTestConfig();
-    });
-
-    return () => {
-      socket.off('drives_updated');
-      socket.off('test_progress');
-      socket.off('session_updated');
-      socket.off('settings_updated');
-    };
-  }, [socket]);
-
   const loadSession = async () => {
     try {
       const data = await apiService.getSession();
@@ -99,6 +57,61 @@ function App() {
       console.error('Error loading test config:', error);
     }
   };
+
+  const loadInitialData = useCallback(async () => {
+    try {
+      await Promise.all([
+        loadSession(),
+        loadDrives(),
+        loadBayMap(),
+        loadTestConfig()
+      ]);
+    } catch (error) {
+      console.error('Error loading initial data:', error);
+    }
+  }, []);
+
+  // Load initial data
+  useEffect(() => {
+    loadInitialData();
+  }, [loadInitialData]);
+
+  // WebSocket event handlers
+  useEffect(() => {
+    if (!socket) return;
+
+    socket.on('drives_updated', () => {
+      loadDrives();
+      loadBayMap();
+    });
+
+    socket.on('test_progress', (data) => {
+      // Update test progress in bay map
+      setBayMap(prev => prev.map(bay => {
+        if (bay.bay_number === data.bay_number) {
+          return { ...bay, test_progress: data };
+        }
+        return bay;
+      }));
+    });
+
+    socket.on('session_updated', (data) => {
+      if (data.po_number) {
+        setSession(prev => ({ ...prev, po_number: data.po_number }));
+      }
+    });
+
+    socket.on('settings_updated', () => {
+      loadTestConfig();
+    });
+
+    return () => {
+      socket.off('drives_updated');
+      socket.off('test_progress');
+      socket.off('session_updated');
+      socket.off('settings_updated');
+    };
+  }, [socket]);
 
   const handlePONumberChange = async (poNumber) => {
     try {

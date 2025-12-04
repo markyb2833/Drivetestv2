@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import './App.css';
 import Header from './components/Header';
 import TestingControls from './components/TestingControls';
@@ -11,14 +11,13 @@ function App() {
   const [drives, setDrives] = useState([]);
   const [bayMap, setBayMap] = useState([]);
   const [testConfig, setTestConfig] = useState(null);
-  const [systemStatus, setSystemStatus] = useState(null);
   
   const { connected, socket } = useWebSocket();
 
   // Load initial data
   useEffect(() => {
     loadInitialData();
-  }, []);
+  }, [loadInitialData]);
 
   // WebSocket event handlers
   useEffect(() => {
@@ -56,20 +55,6 @@ function App() {
       socket.off('settings_updated');
     };
   }, [socket]);
-
-  const loadInitialData = async () => {
-    try {
-      await Promise.all([
-        loadSession(),
-        loadDrives(),
-        loadBayMap(),
-        loadTestConfig(),
-        loadSystemStatus()
-      ]);
-    } catch (error) {
-      console.error('Error loading initial data:', error);
-    }
-  };
 
   const loadSession = async () => {
     try {
@@ -112,17 +97,6 @@ function App() {
       }
     } catch (error) {
       console.error('Error loading test config:', error);
-    }
-  };
-
-  const loadSystemStatus = async () => {
-    try {
-      const data = await apiService.getSystemStatus();
-      if (data.success) {
-        setSystemStatus(data.status);
-      }
-    } catch (error) {
-      console.error('Error loading system status:', error);
     }
   };
 

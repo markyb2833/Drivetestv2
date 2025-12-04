@@ -98,13 +98,21 @@ for pkg in "${SYSTEM_PACKAGES[@]}"; do
     install_system_package "$pkg" || true
 done
 
-# Check Node.js version (need 14+)
-if command_exists node; then
+# Install Node.js if not found or version is too old
+if ! command_exists node; then
+    echo -e "${YELLOW}Node.js not found. Installing Node.js 18.x LTS...${NC}"
+    curl -fsSL https://deb.nodesource.com/setup_18.x | $SUDO bash -
+    $SUDO apt-get install -y nodejs
+    echo -e "${GREEN}✓${NC} Node.js installed"
+elif command_exists node; then
     NODE_VERSION=$(node -v | cut -d'v' -f2 | cut -d'.' -f1)
     if [ "$NODE_VERSION" -lt 14 ]; then
-        echo -e "${YELLOW}Node.js version is too old. Installing Node.js 18.x...${NC}"
+        echo -e "${YELLOW}Node.js version is too old ($(node -v)). Installing Node.js 18.x...${NC}"
         curl -fsSL https://deb.nodesource.com/setup_18.x | $SUDO bash -
         $SUDO apt-get install -y nodejs
+        echo -e "${GREEN}✓${NC} Node.js updated"
+    else
+        echo -e "${GREEN}✓${NC} Node.js $(node -v) already installed"
     fi
 fi
 

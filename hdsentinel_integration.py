@@ -45,20 +45,26 @@ class HDSentinelIntegration:
         
         base_dir = os.path.dirname(__file__)
         
-        # Common locations - check files first
+        # Common locations - check files first (various name spellings)
         search_paths = [
             '/usr/local/bin/hdsentinel',
             '/usr/bin/hdsentinel',
             '/opt/hdsentinel/hdsentinel',
-            os.path.join(base_dir, 'tools', 'hdsentinel'),
+            os.path.join(base_dir, 'HDSentinal'),  # User's actual file name
             os.path.join(base_dir, 'hdsentinel'),
+            os.path.join(base_dir, 'HDSentinel'),
+            os.path.join(base_dir, 'tools', 'hdsentinel'),
+            './HDSentinal',  # User's actual file name
             './hdsentinel',
+            './HDSentinel',
             './tools/hdsentinel',
         ]
         
-        # Also check inside folders named "hdsentinel"
+        # Also check inside folders named "hdsentinel" or "HDSentinal" (various spellings)
         folder_paths = [
+            os.path.join(base_dir, 'HDSentinal'),  # User's actual folder name
             os.path.join(base_dir, 'hdsentinel'),
+            './HDSentinal',  # User's actual folder name
             './hdsentinel',
             './HDSentinel',
             './HDSENTINEL',

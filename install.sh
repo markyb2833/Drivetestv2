@@ -228,17 +228,35 @@ for tool in "${OPTIONAL_TOOLS[@]}"; do
         if command_exists "$tool"; then
             HDSENTINEL_PATH=$(which "$tool")
             HDSENTINEL_FOUND=true
-        # Check project directory locations (files)
+        # Check project directory locations (files) - check various name spellings
+        elif [ -f "./HDSentinal" ] && [ -x "./HDSentinal" ]; then
+            HDSENTINEL_PATH="./HDSentinal"
+            HDSENTINEL_FOUND=true
         elif [ -f "./hdsentinel" ] && [ -x "./hdsentinel" ]; then
             HDSENTINEL_PATH="./hdsentinel"
+            HDSENTINEL_FOUND=true
+        elif [ -f "./HDSentinel" ] && [ -x "./HDSentinel" ]; then
+            HDSENTINEL_PATH="./HDSentinel"
             HDSENTINEL_FOUND=true
         elif [ -f "./tools/hdsentinel" ] && [ -x "./tools/hdsentinel" ]; then
             HDSENTINEL_PATH="./tools/hdsentinel"
             HDSENTINEL_FOUND=true
+        elif [ -f "HDSentinal" ] && [ -x "HDSentinal" ]; then
+            HDSENTINEL_PATH="HDSentinal"
+            HDSENTINEL_FOUND=true
         elif [ -f "hdsentinel" ] && [ -x "hdsentinel" ]; then
             HDSENTINEL_PATH="hdsentinel"
             HDSENTINEL_FOUND=true
-        # Check inside folders named "hdsentinel"
+        # Check inside folders named "hdsentinel" or "HDSentinal" (various spellings)
+        elif [ -d "./HDSentinal" ]; then
+            # Check for binary inside HDSentinal folder (user's actual folder name)
+            for bin_name in "./HDSentinal/hdsentinel" "./HDSentinal/HDSentinel" "./HDSentinal/HDSENTINEL" "./HDSentinal/hdsentinel-linux" "./HDSentinal/HDSentinel-linux" "./HDSentinal/HDSentinal"; do
+                if [ -f "$bin_name" ] && [ -x "$bin_name" ]; then
+                    HDSENTINEL_PATH="$bin_name"
+                    HDSENTINEL_FOUND=true
+                    break
+                fi
+            done
         elif [ -d "./hdsentinel" ]; then
             # Check for binary inside folder
             for bin_name in "./hdsentinel/hdsentinel" "./hdsentinel/HDSentinel" "./hdsentinel/HDSENTINEL" "./hdsentinel/hdsentinel-linux" "./hdsentinel/HDSentinel-linux"; do
@@ -272,8 +290,7 @@ for tool in "${OPTIONAL_TOOLS[@]}"; do
         else
             echo -e "${YELLOW}⚠${NC} $tool: NOT FOUND (optional, but recommended)"
             echo "   Place HDSentinel binary in:"
-            echo "     - ./hdsentinel (file)"
-            echo "     - ./hdsentinel/hdsentinel (file inside folder)"
+            echo "     - ./HDSentinal or ./hdsentinel (file in project root)"
             echo "     - ./tools/hdsentinel (file)"
             echo "     - /usr/local/bin/hdsentinel (system-wide)"
         fi

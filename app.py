@@ -282,7 +282,17 @@ def get_bay_map():
         
         # Get backplane config
         bp_config = get_backplane_config()
-        total_bays = bp_config.total_bays if bp_config else max(bay_map.keys(), default=0) + 1
+        
+        # Determine total bays
+        if bp_config and bp_config.total_bays:
+            total_bays = bp_config.total_bays
+        elif bay_map:
+            # Use max bay number + 1, but at least show 1 bay
+            total_bays = max(bay_map.keys()) + 1
+        else:
+            # Default to showing some bays even if empty (for testing)
+            # Or use number of detected drives if no bay mapping
+            total_bays = max(len(drives), 1) if drives else 1
         
         # Build bay array
         bays = []
@@ -307,14 +317,40 @@ def get_bay_map():
                     'occupied': False
                 })
         
+        # If no bay mapping but drives detected, show drives without bay numbers
+        if not bay_map and drives:
+            for idx, (device_path, drive_info) in enumerate(drives.items()):
+                bays.append({
+                    'bay_number': idx,
+                    'occupied': True,
+                    'device_path': drive_info.device_path,
+                    'serial': drive_info.serial,
+                    'model': drive_info.model,
+                    'capacity': drive_info.capacity,
+                    'connection_type': drive_info.connection_type,
+                    'sata_version': drive_info.sata_version,
+                    'test_running': test_executor.is_test_running(drive_info.device_path),
+                    'test_progress': None
+                })
+        
         return jsonify({
             'success': True,
             'bays': bays,
-            'total_bays': total_bays,
-            'occupied_bays': len(bay_map)
+            'total_bays': len(bays) if bays else total_bays,
+            'occupied_bays': len(bay_map) if bay_map else (len(drives) if drives else 0),
+            'debug': {
+                'drives_detected': len(drives),
+                'bays_mapped': len(bay_map),
+                'backplane_configured': bp_config is not None
+            }
         })
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        import traceback
+        return jsonify({
+            'success': False, 
+            'error': str(e),
+            'traceback': traceback.format_exc()
+        }), 500
 
 
 @app.route('/api/bay-map/<int:bay_number>', methods=['GET'])

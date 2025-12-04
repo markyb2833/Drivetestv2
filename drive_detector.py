@@ -137,19 +137,71 @@ class DriveDetector:
         
         try:
             if os.path.exists(scsi_device_path):
-                with open(scsi_device_path, 'r') as f:
-                    scsi_str = f.read().strip()
-                    # Format: "0:0:5:0" -> host:channel:target:lun
-                    parts = scsi_str.split(':')
-                    if len(parts) == 4:
-                        return {
-                            'host': int(parts[0]),
-                            'channel': int(parts[1]),
-                            'target': int(parts[2]),
-                            'lun': int(parts[3])
-                        }
+                # Check if it's a file or directory
+                if os.path.isfile(scsi_device_path):
+                    # Read from file
+                    with open(scsi_device_path, 'r') as f:
+                        scsi_str = f.read().strip()
+                        # Format: "0:0:5:0" -> host:channel:target:lun
+                        parts = scsi_str.split(':')
+                        if len(parts) == 4:
+                            return {
+                                'host': int(parts[0]),
+                                'channel': int(parts[1]),
+                                'target': int(parts[2]),
+                                'lun': int(parts[3])
+                            }
+                elif os.path.isdir(scsi_device_path):
+                    # It's a directory - try alternative methods
+                    # Method 1: Read from individual files in the directory
+                    host_path = os.path.join(scsi_device_path, 'host')
+                    channel_path = os.path.join(scsi_device_path, 'channel')
+                    target_path = os.path.join(scsi_device_path, 'target')
+                    lun_path = os.path.join(scsi_device_path, 'lun')
+                    
+                    scsi_info = {}
+                    if os.path.exists(host_path):
+                        with open(host_path, 'r') as f:
+                            scsi_info['host'] = int(f.read().strip())
+                    if os.path.exists(channel_path):
+                        with open(channel_path, 'r') as f:
+                            scsi_info['channel'] = int(f.read().strip())
+                    if os.path.exists(target_path):
+                        with open(target_path, 'r') as f:
+                            scsi_info['target'] = int(f.read().strip())
+                    if os.path.exists(lun_path):
+                        with open(lun_path, 'r') as f:
+                            scsi_info['lun'] = int(f.read().strip())
+                    
+                    if len(scsi_info) == 4:
+                        return scsi_info
+                    
+                    # Method 2: Use udevadm to get SCSI info
+                    device_path = f'/dev/{device_name}'
+                    result = subprocess.run(
+                        ['udevadm', 'info', '--query=property', '--name', device_path],
+                        capture_output=True,
+                        text=True,
+                        timeout=5
+                    )
+                    if result.returncode == 0:
+                        # Parse udevadm output for SCSI info
+                        for line in result.stdout.split('\n'):
+                            if 'ID_SCSI=' in line:
+                                # Format: ID_SCSI=1:0:0:0
+                                scsi_str = line.split('=')[1].strip()
+                                parts = scsi_str.split(':')
+                                if len(parts) == 4:
+                                    return {
+                                        'host': int(parts[0]),
+                                        'channel': int(parts[1]),
+                                        'target': int(parts[2]),
+                                        'lun': int(parts[3])
+                                    }
         except Exception as e:
-            print(f"Error reading SCSI info for {device_name}: {e}")
+            # Don't print error for directory case - it's expected on some systems
+            if 'Is a directory' not in str(e):
+                print(f"Error reading SCSI info for {device_name}: {e}")
         
         return None
     

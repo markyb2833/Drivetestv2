@@ -219,11 +219,41 @@ done
 echo ""
 echo "Optional tools:"
 for tool in "${OPTIONAL_TOOLS[@]}"; do
-    if command_exists "$tool"; then
-        VERSION=$($tool --version 2>/dev/null | head -n1 || echo "installed")
-        echo -e "${GREEN}✓${NC} $tool: $VERSION"
+    if [ "$tool" = "hdsentinel" ]; then
+        # Check for HDSentinel in multiple locations
+        HDSENTINEL_FOUND=false
+        HDSENTINEL_PATH=""
+        
+        # Check common system locations
+        if command_exists "$tool"; then
+            HDSENTINEL_PATH=$(which "$tool")
+            HDSENTINEL_FOUND=true
+        # Check project directory locations
+        elif [ -f "./hdsentinel" ] && [ -x "./hdsentinel" ]; then
+            HDSENTINEL_PATH="./hdsentinel"
+            HDSENTINEL_FOUND=true
+        elif [ -f "./tools/hdsentinel" ] && [ -x "./tools/hdsentinel" ]; then
+            HDSENTINEL_PATH="./tools/hdsentinel"
+            HDSENTINEL_FOUND=true
+        elif [ -f "hdsentinel" ] && [ -x "hdsentinel" ]; then
+            HDSENTINEL_PATH="hdsentinel"
+            HDSENTINEL_FOUND=true
+        fi
+        
+        if [ "$HDSENTINEL_FOUND" = true ]; then
+            VERSION=$($HDSENTINEL_PATH --version 2>/dev/null | head -n1 || echo "installed")
+            echo -e "${GREEN}✓${NC} $tool: Found at $HDSENTINEL_PATH ($VERSION)"
+        else
+            echo -e "${YELLOW}⚠${NC} $tool: NOT FOUND (optional, but recommended)"
+            echo "   Place HDSentinel binary in: ./hdsentinel or ./tools/hdsentinel"
+        fi
     else
-        echo -e "${YELLOW}⚠${NC} $tool: NOT FOUND (optional, but recommended)"
+        if command_exists "$tool"; then
+            VERSION=$($tool --version 2>/dev/null | head -n1 || echo "installed")
+            echo -e "${GREEN}✓${NC} $tool: $VERSION"
+        else
+            echo -e "${YELLOW}⚠${NC} $tool: NOT FOUND (optional, but recommended)"
+        fi
     fi
 done
 

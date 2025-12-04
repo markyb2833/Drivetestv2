@@ -1,0 +1,350 @@
+Make a scalable hard drive tester and utility
+
+Written for linux ubuntu LTS
+
+Written in whichever language suits best
+
+Web interface
+
+Have all tests and functions ran per drive
+
+Have a settings tab to turn on and off certain tests
+
+Key functions:
+Be able to test health using HDSentinal package
+Check for reallocated sectors and any failures reported in smart
+Be able to detect sata / sas, type of connection (SATA1, 2 ,3 etc)
+Be able to report model number, and potentially match to inventory system
+Be able to check block size
+Use linux native tools to change block size (Inluding support for fast format)
+Be able to show progress of tests and block size changes
+Be able to detect which bay of a backplane a drive is physically plugged into
+Full logging, including saving all test reports under the drives serial number and a user entered PO number
+
+================================================================================
+TECHNOLOGY STACK
+================================================================================
+
+Backend:
+- Python 3.10+ (recommended: Flask/FastAPI for web framework)
+- Libraries: pysmart, psutil, pyudev for drive detection
+- Linux tools: smartctl (smartmontools), hdparm, lsblk, sg_scan, sg_map
+- Background jobs: Celery + Redis (or simpler: threading/multiprocessing)
+
+Frontend:
+- Single-Page Application (SPA): React or Vue.js (no page refreshes)
+- Real-time updates: WebSockets (Socket.IO or native WS)
+- UI Framework: Bootstrap/TailwindCSS for responsive design
+- State management: React Context/Vuex or similar for global state
+- Routing: React Router/Vue Router (for navigation within SPA if needed)
+- Auto-refresh: WebSocket-driven updates, no manual refresh needed
+
+Database:
+- MySQL database: mysql://newinv:password123!@192.168.0.197/compudrive
+- Store: drive info, test results, test configurations, PO numbers, user sessions, persistent settings, logs
+- All settings and PO numbers persist across reboots (database-backed)
+- Connection pooling for performance
+
+================================================================================
+ARCHITECTURE COMPONENTS
+================================================================================
+
+1. Drive Detection Service
+   - Monitor /dev/disk/by-* paths
+   - Listen to udev events for hotplug detection
+   - Parse sysfs (/sys/block/sdX/) for drive metadata
+   - Extract stable device paths (/dev/disk/by-path/)
+   - Map drives to physical bay numbers using SCSI target numbers
+   - Maintain bay-to-drive mapping cache
+   - Detect backplane bay count (auto-detect or config)
+
+2. Test Execution Engine
+   - Queue-based system for concurrent drive testing
+   - Per-drive worker processes/threads
+   - Test isolation (one drive failure shouldn't affect others)
+   - Progress tracking and cancellation support
+
+3. Web API Layer
+   - REST endpoints for drive management
+   - Test control (start/stop/cancel)
+   - Results retrieval
+   - Settings management
+   - Drive metadata queries
+
+4. WebSocket Server
+   - Real-time progress updates
+   - Drive status changes (connected/disconnected)
+   - Test completion notifications
+   - System status broadcasts
+
+5. Storage/Logging System
+   - Organized by: Serial Number / PO Number / Timestamp
+   - Store: SMART data, test results, logs, configuration snapshots
+   - Export formats: JSON, CSV, PDF reports
+
+6. Persistence & Initialization Service
+   - On startup: Load all settings from database
+   - Restore last active user session (PO number, user name)
+   - Restore test configuration (enabled tests, parameters)
+   - Restore backplane configuration (bay count, layout)
+   - Restore UI preferences (if any)
+   - On setting change: Immediately persist to database
+   - On PO number change: Update user_session table
+   - All user inputs auto-save (no "Save" button needed)
+   - Database file location: /var/lib/hdd_tester/data.db (or configurable)
+
+================================================================================
+DETAILED TEST TYPES
+================================================================================
+
+SMART Health Tests:
+- Read SMART attributes (smartctl -a)
+- Check critical attributes: Reallocated_Sector_Ct, Current_Pending_Sector, Offline_Uncorrectable
+- SMART self-tests: Short test, Extended test, Conveyance test
+- SMART error log parsing
+- Temperature monitoring
+
+Connection Detection:
+- Interface type: SATA vs SAS (via smartctl -d, sg_scan)
+- SATA version: SATA1/2/3 detection (via hdparm -I or smartctl)
+- Link speed detection
+- Physical connection path (PCIe, USB, etc.)
+
+Drive Information:
+- Model number, serial number, firmware version
+- Capacity (logical/physical)
+- Form factor (2.5", 3.5", etc.)
+- Rotation speed (RPM) or SSD detection
+- Manufacture date
+
+Block Size Operations:
+- Current block size detection (via blockdev or hdparm)
+- Change block size (mkfs, hdparm, or direct ioctl)
+- Fast format option (quick format vs full format)
+- Progress tracking for format operations
+
+Backplane Bay Detection:
+- Use /dev/disk/by-path/ symlinks for stable physical port identification
+  * Format: pci-{PCI_ADDRESS}-scsi-{HOST}:{CHANNEL}:{TARGET}:{LUN}
+  * Example: pci-0000:01:00.0-scsi-0:0:5:0 (PCI address + SCSI path)
+  * The SCSI TARGET number often corresponds to the bay number!
+- Alternative: Use udevadm info --query=path to get full sysfs path
+  * Format: /devices/pci0000:00/0000:00:1f.2/host0/target0:0:5/0:0:5:0/block/sda
+  * Extract PCI address (0000:00:1f.2) and SCSI target (0:0:5) from path
+- Parse sg_map output for enclosure information (fallback)
+- Use sg_ses for enclosure status pages (if available)
+- Custom mapping file/config for non-standard backplanes
+
+================================================================================
+SINGLE-PAGE APPLICATION (SPA) UI LAYOUT
+================================================================================
+
+Page Structure (No refreshes, all updates via WebSocket):
+┌─────────────────────────────────────────────────────────────┐
+│ HEADER: User Details & Session Info                         │
+│ - PO Number (editable, persists to database)                │
+│ - User Name (optional, persists)                            │
+│ - Session Status (Active/Inactive)                          │
+│ - Last Activity Timestamp                                   │
+└─────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────┐
+│ TESTING CONTROL SECTION                                      │
+│ - Auto-test toggle (enable/disable automatic testing)       │
+│ - Test configuration selector (dropdown of saved configs)  │
+│ - Test settings panel (expandable):                         │
+│   * Enable/disable individual tests (checkboxes)            │
+│   * Test parameters (timeouts, thresholds, etc.)           │
+│   * Auto-start on drive insertion (checkbox)                │
+│   * Stop on first failure (checkbox)                        │
+│ - Global test controls:                                      │
+│   * Start all tests button                                  │
+│   * Stop all tests button                                   │
+│   * Pause/Resume button                                     │
+│ - All settings persist to database (survive reboots)       │
+└─────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────┐
+│ BAY MAP DISPLAY (Main Visual Area)                          │
+│ - Physical backplane representation with boxes for each bay │
+│ - Each bay box shows:                                       │
+│   * Bay number (prominently displayed)                      │
+│   * Drive status: Empty / Present / Testing / Error         │
+│   * Drive info (if present): Model, Serial, Capacity       │
+│   * Connection type: SATA/SAS, speed (SATA3, etc.)          │
+│   * Current test status/progress (if testing)               │
+│   * Health indicator (LED-like visual: green/yellow/red)    │
+│   * Quick actions: Start test, View details, Eject          │
+│ - Layout options:                                           │
+│   * Grid layout (e.g., 4x6 for 24-bay backplane)            │
+│   * List layout (vertical stack)                            │
+│   * Custom layout matching physical backplane arrangement   │
+│ - Real-time updates via WebSocket (no page refresh):        │
+│   * Drive plugged/unplugged events                          │
+│   * Test progress updates                                   │
+│   * Status changes                                           │
+│ - Empty bays: Show grayed-out box with bay number only     │
+│ - Color coding:                                             │
+│   * Green: Healthy drive, tests passed                      │
+│   * Yellow: Warning (SMART issues, tests running)           │
+│   * Red: Failed tests, critical SMART errors                │
+│   * Gray: Empty bay                                          │
+│   * Blue: Currently testing                                  │
+│ - Click interaction: Click bay box to view full drive        │
+│   details, test history, start tests                        │
+│ - Responsive design: Adapts to different screen sizes       │
+└─────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────┐
+│ FOOTER (Optional): System Status, Logs, Export Options      │
+└─────────────────────────────────────────────────────────────┘
+
+Key Features:
+- Single-page application: No page refreshes, all updates via WebSocket
+- Persistent storage: All user inputs (PO number, settings) saved to database
+- Auto-restore: On page load, restore last PO number and all settings from database
+- Real-time updates: WebSocket events update UI instantly
+- State management: Frontend state synced with backend database
+
+Frontend Initialization Flow:
+1. Page loads → Connect to WebSocket
+2. Fetch current session: GET /api/session (restore PO number, user name)
+3. Fetch all settings: GET /api/settings (restore test config, UI preferences)
+4. Fetch bay map: GET /api/bay-map (display current drive status)
+5. Fetch test configuration: GET /api/config/tests (restore enabled tests)
+6. Listen for WebSocket events (updates happen in real-time)
+7. All user changes immediately POST/PUT to API (auto-save, no manual save)
+
+Persistence Behavior:
+- PO number: Saved to user_sessions table on change, restored on page load
+- Test settings: Saved to test_configurations table, restored on page load
+- UI preferences: Saved to persistent_settings table, restored on page load
+- All changes survive: Server restarts, browser refreshes, system reboots
+- No "Save" buttons needed: All changes auto-persist immediately
+
+Bay Mapping Implementation Logic:
+1. Scan all block devices (/dev/sd*)
+2. For each device:
+   a. Read /dev/disk/by-path/ symlinks to find matching path
+   b. Extract SCSI target number from path (e.g., "pci-...-scsi-0:0:5:0" → bay 5)
+   c. Alternative: Read /sys/block/sdX/device/scsi_device → parse target number
+   d. Build mapping: {bay_number: {device: '/dev/sdX', serial: '...', model: '...', ...}}
+3. Determine total bay count:
+   a. Find max SCSI target number from all detected drives
+   b. Or use configuration file: /etc/hdd_tester/backplane.conf
+   c. Or query enclosure: sg_ses --page=0x02 (element descriptor page)
+4. Create visual map: Generate array of bay objects (0 to max_bay)
+   - Each bay object contains drive info if present, or null if empty
+5. Update on events:
+   - udev ADD event → add drive to bay map
+   - udev REMOVE event → remove drive from bay map
+   - WebSocket broadcast → update frontend display
+
+Stable Device Path Methods:
+1. /dev/disk/by-path/ - Automatically created by udev, persists across reboots
+   * Read symlink: readlink /dev/disk/by-path/pci-0000:01:00.0-scsi-0:0:5:0
+   * Reverse lookup: Find which /dev/sdX maps to which by-path
+2. PCI Address: Format 0000:01:00.0 (domain:bus:device.function)
+   * Found in: /sys/block/sdX/device/../../../address
+   * Or from: udevadm info --query=property --name=/dev/sdX | grep PCI_SLOT_NAME
+3. SCSI Host/Channel/Target/LUN: Format 0:0:5:0
+   * Found in: /sys/block/sdX/device/scsi_device
+   * The TARGET number is often the bay number on backplanes!
+4. Full sysfs path: udevadm info --query=path --name=/dev/sdX
+   * Contains complete hardware hierarchy path
+
+Additional Tests to Consider:
+- Badblocks test (read/write test)
+- Sequential read/write speed test
+- Random I/O performance test
+- Power-on hours check
+- Power cycle count
+- Temperature stress test
+- Vibration test (if sensors available)
+
+================================================================================
+DATABASE SCHEMA CONSIDERATIONS
+================================================================================
+
+Tables:
+- drives: serial, model, capacity, connection_type, bay_location, device_path, stable_path, first_seen, last_seen
+- test_sessions: id, drive_serial, po_number, user_session_id, start_time, end_time, status
+- test_results: session_id, test_type, result_data (JSON), timestamp, passed/failed
+- test_configurations: id, name, enabled_tests (JSON), test_parameters (JSON), is_default (boolean), created_at, updated_at
+- backplane_config: id, total_bays, layout_type (grid/list/custom), layout_config (JSON), auto_detect (boolean), updated_at
+- user_sessions: id, po_number, user_name (optional), created_at, last_activity, is_active (boolean)
+- persistent_settings: id, setting_key (unique), setting_value (JSON/text), category, updated_at
+- logs: session_id, level, message, timestamp
+
+Note: bay_location stores the physical bay number (0-indexed or 1-indexed based on backplane)
+      device_path stores /dev/sdX, stable_path stores the /dev/disk/by-path/ identifier
+      persistent_settings stores all user preferences, test settings, UI preferences that survive reboots
+      user_sessions tracks active PO numbers and user sessions
+
+================================================================================
+API ENDPOINTS (Draft)
+================================================================================
+
+GET  /api/drives                    - List all detected drives
+GET  /api/drives/{serial}           - Get drive details
+POST /api/drives/{serial}/test      - Start test session
+GET  /api/drives/{serial}/test      - Get current test status
+DELETE /api/drives/{serial}/test    - Cancel running test
+GET  /api/drives/{serial}/results   - Get test history
+GET  /api/drives/{serial}/smart     - Get current SMART data
+POST /api/drives/{serial}/format    - Change block size/format
+GET  /api/bay-map                   - Get visual bay mapping (array of bay objects)
+GET  /api/bay-map/{bay_number}      - Get specific bay details
+GET  /api/config/tests              - Get test configuration
+PUT  /api/config/tests              - Update test configuration
+GET  /api/config/backplane          - Get backplane configuration (bay count, layout)
+PUT  /api/config/backplane          - Update backplane configuration
+GET  /api/session                   - Get current user session (PO number, user name, etc.)
+POST /api/session                   - Create/update user session (set PO number, user name)
+PUT  /api/session/po                - Update PO number (persists to database)
+GET  /api/settings                  - Get all persistent settings
+GET  /api/settings/{key}            - Get specific setting
+PUT  /api/settings/{key}            - Update specific setting (persists to database)
+GET  /api/system/status             - System health/status
+
+WebSocket Events:
+- session_updated (PO number or user name changed)
+- drive_connected, drive_disconnected (includes bay_number)
+- bay_map_updated (full bay map refresh)
+- test_progress, test_complete, test_failed (includes bay_number)
+- format_progress, format_complete (includes bay_number)
+- settings_updated (when settings change)
+
+================================================================================
+SECURITY CONSIDERATIONS
+================================================================================
+
+- User authentication/authorization (who can run tests, who can format drives)
+- Drive write protection (prevent accidental formatting of wrong drives)
+- Confirmation dialogs for destructive operations
+- Audit logging of all operations
+- Rate limiting for API endpoints
+- Input validation and sanitization
+
+================================================================================
+DEPLOYMENT & SCALABILITY
+================================================================================
+
+- Single machine deployment (all components on one server)
+- Multi-machine: separate test workers from web server
+- Docker containerization option
+- Systemd service for background workers
+- Configuration file for system-specific settings (backplane mapping, etc.)
+- Support for multiple concurrent drives (limited by hardware)
+
+================================================================================
+ADDITIONAL FEATURES TO CONSIDER
+================================================================================
+
+- Email/SMS notifications for test completion
+- Batch operations (test multiple drives)
+- Test templates/presets (quick test, full test, etc.)
+- Drive comparison/reporting (compare multiple drives)
+- Inventory integration API (REST endpoint to query external inventory)
+- Barcode/QR code scanning for PO numbers
+- Test scheduling (run tests at specific times)
+- Historical trending (track drive health over time)
+- Export test reports (PDF, CSV, JSON)
+- Dashboard with statistics and charts

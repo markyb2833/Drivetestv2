@@ -1,0 +1,12 @@
+flask==3.0.0
+flask-cors==4.0.0
+flask-socketio==5.3.6
+python-socketio==5.10.0
+pyudev==0.24.0
+psutil==5.9.6
+pysmart==0.3
+sqlalchemy==2.0.23
+pymysql==1.1.0
+cryptography==41.0.7
+numpy==1.24.3
+
